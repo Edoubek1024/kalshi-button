@@ -122,7 +122,7 @@ production key.
 
 1. Repo **Settings → Pages → Source → GitHub Actions**. The workflow at
    `.github/workflows/deploy-pages.yml` builds `web/` and deploys it on every
-   push to `main`.
+   push to `master`.
 2. That workflow needs one repository **variable**: **Settings → Secrets and
    variables → Actions → Variables → New repository variable**, name
    `RELAY_URL`, value your Worker's URL from step 2 above. (Not a secret —
@@ -130,7 +130,7 @@ production key.
 3. Update the relay's `ALLOWED_ORIGIN` to your Pages origin,
    `https://<you>.github.io` (no path, no trailing slash), and redeploy the
    worker.
-4. Push to `main` (or run the workflow manually from the Actions tab). The
+4. Push to `master` (or run the workflow manually from the Actions tab). The
    frontend deploys to `https://<you>.github.io/<repo-name>/`.
 
 Your key is never part of this deploy — it's pasted into the running app in
