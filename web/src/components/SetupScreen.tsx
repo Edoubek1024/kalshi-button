@@ -3,9 +3,11 @@ import { resolveMarketFromUrl, type ResolveResult } from "../kalshi/client";
 
 interface Props {
   onConfirm: (resolved: ResolveResult, teamTickers: [string, string]) => Promise<void>;
+  kalshiEnv: "demo" | "prod";
 }
 
-export function SetupScreen({ onConfirm }: Props) {
+export function SetupScreen({ onConfirm, kalshiEnv }: Props) {
+  const isReal = kalshiEnv === "prod";
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +42,8 @@ export function SetupScreen({ onConfirm }: Props) {
   async function handleStart() {
     if (!resolved || selected.length !== 2) return;
     const names = resolved.markets.filter((m) => selected.includes(m.ticker)).map((m) => m.teamName);
-    if (!window.confirm(`Buy 10 real-money shares of each: ${names.join(" and ")}?\n\nThis places live orders on your Kalshi account.`)) {
+    const moneyLabel = isReal ? "real-money" : "play-money (demo)";
+    if (!window.confirm(`Buy 10 ${moneyLabel} shares of each: ${names.join(" and ")}?\n\nThis places live orders on your Kalshi ${kalshiEnv} account.`)) {
       return;
     }
     setStarting(true);
@@ -59,7 +62,14 @@ export function SetupScreen({ onConfirm }: Props) {
       <div>
         <h1 className="text-2xl font-bold text-white">Kalshi Touchdown Button</h1>
         <p className="mt-1 text-sm text-slate-400">
-          Paste a Kalshi football game market URL to start. This places <span className="font-semibold text-amber-400">real orders</span> with real money.
+          Paste a Kalshi football game market URL to start.{" "}
+          {isReal ? (
+            <>
+              This places <span className="font-semibold text-amber-400">real orders</span> with real money.
+            </>
+          ) : (
+            <>This places orders on your <span className="font-semibold text-emerald-400">demo</span> account — play money only.</>
+          )}
         </p>
       </div>
 
@@ -127,7 +137,7 @@ export function SetupScreen({ onConfirm }: Props) {
             disabled={selected.length !== 2 || starting}
             className="rounded-lg bg-amber-500 px-4 py-3 font-bold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {starting ? "Placing opening orders..." : "Start game — buy 10 shares each team (real money)"}
+            {starting ? "Placing opening orders..." : `Start game — buy 10 shares each team (${isReal ? "real money" : "demo"})`}
           </button>
         </div>
       )}

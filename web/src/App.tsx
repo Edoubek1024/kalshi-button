@@ -36,9 +36,17 @@ export default function App() {
         <CredentialsSetup locked={creds} onLocked={setCreds} onUnlocked={() => setCreds(null)} />
       </div>
       {!game ? (
-        <SetupScreen onConfirm={startGame} />
+        <SetupScreen onConfirm={startGame} kalshiEnv={creds.kalshiEnv} />
       ) : (
-        <GameScreen game={game} pending={pending} log={log} onTouchdown={touchdown} onBuyBack={buyBack} onEndGame={endGame} />
+        <GameScreen
+          game={game}
+          pending={pending}
+          log={log}
+          kalshiEnv={creds.kalshiEnv}
+          onTouchdown={touchdown}
+          onBuyBack={buyBack}
+          onEndGame={endGame}
+        />
       )}
     </div>
   );

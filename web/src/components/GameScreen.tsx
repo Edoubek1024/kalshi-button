@@ -8,12 +8,13 @@ interface Props {
   game: ActiveGame;
   pending: Record<string, boolean>;
   log: ActivityLogEntry[];
+  kalshiEnv: "demo" | "prod";
   onTouchdown: (ticker: string) => void;
   onBuyBack: (ticker: string) => void;
   onEndGame: () => void;
 }
 
-export function GameScreen({ game, pending, log, onTouchdown, onBuyBack, onEndGame }: Props) {
+export function GameScreen({ game, pending, log, kalshiEnv, onTouchdown, onBuyBack, onEndGame }: Props) {
   const [feeParams, setFeeParams] = useState<FeeParams | null>(null);
 
   useEffect(() => {
@@ -35,7 +36,9 @@ export function GameScreen({ game, pending, log, onTouchdown, onBuyBack, onEndGa
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-lg font-bold text-white">{game.eventTitle}</h1>
-          <p className="text-xs text-slate-500">Live trading — every button press places a real order.</p>
+          <p className="text-xs text-slate-500">
+            Live trading on <span className={kalshiEnv === "prod" ? "font-semibold text-amber-400" : "font-semibold text-emerald-400"}>{kalshiEnv}</span> — every button press places an order.
+          </p>
         </div>
         <button
           onClick={() => {
@@ -56,6 +59,7 @@ export function GameScreen({ game, pending, log, onTouchdown, onBuyBack, onEndGa
             team={team}
             pending={!!pending[team.ticker]}
             feeParams={feeParams}
+            kalshiEnv={kalshiEnv}
             onTouchdown={() => onTouchdown(team.ticker)}
             onBuyBack={() => onBuyBack(team.ticker)}
           />
