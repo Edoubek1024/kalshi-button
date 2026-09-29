@@ -5,22 +5,57 @@ game market URL, it buys 10 shares of each team, and then a single button
 per team lets you sell the losing team's shares the instant a touchdown is
 scored — with a Buy Back option to rebuild the position once the price falls.
 
-**This places real orders with real money on your Kalshi account.** Read the
-Safety notes below before using it during an actual game.
+**This places real orders with real money on your Kalshi account.** Read
+"Security model" below before pasting real credentials into it.
 
 ## Architecture
 
-- `web/` — React + TypeScript + Vite + Tailwind. Nearly all UI and game logic
-  lives here: parsing which team is which, tracking game state, polling
-  prices/positions, computing P&L estimates.
-- `server/` — A minimal Express + TypeScript API. It exists only because
-  Kalshi's API requires a private key to sign every request, which can never
-  be shipped to a browser. It does exactly four things: resolve a pasted URL
-  into a market pair, fetch live prices, fetch positions, and place orders.
-  It holds no other state and has no database or user accounts.
+This is a static, backend-free app by design:
 
-The frontend never sees your Kalshi API key or private key — every
-authenticated call is proxied through the backend.
+- `web/` — React + TypeScript + Vite + Tailwind. All UI and game logic lives
+  here, including request signing: parsing which team is which, tracking
+  game state, polling prices/positions, computing P&L estimates, and signing
+  every Kalshi API call with your private key using the browser's WebCrypto
+  API.
+- `relay/` — A single Cloudflare Worker, `relay/worker.js`. It holds **no
+  credentials at all**. Its only job is working around the fact that
+  browsers enforce CORS and Kalshi's API doesn't allowlist the custom
+  `KALSHI-ACCESS-*` headers this app has to send — confirmed by testing a
+  real CORS preflight against Kalshi's API. The worker forwards your
+  already-signed request to the real Kalshi API and relays the response
+  back with permissive CORS headers. It's restricted to the two real Kalshi
+  hosts and to one browser origin, so it isn't an open proxy.
+
+There is no server component and no database.
+
+## Security model — read this before pasting a real key in
+
+You paste your Kalshi Key ID and private key into the app's "Lock key"
+screen. Here's exactly what that does and doesn't protect:
+
+- The private key is imported into the browser's WebCrypto API as a
+  **non-extractable** `CryptoKey`, then stored in that form in IndexedDB.
+  After you paste it once, no JavaScript on the page — including this app's
+  own code — can ever read the raw key bytes back out. Only the browser's
+  internal sign operation can use it.
+- That key lives **only in that one browser, on that one device**, and stays
+  there (IndexedDB survives reloads and restarts) until you hit "Unlock /
+  change key."
+- **What this does not protect against:** anyone with access to that browser
+  profile or device can place trades as you, for as long as the key is
+  locked in. So can any malicious script that ever successfully runs on this
+  page (a compromised dependency, a browser extension with page access, an
+  XSS bug) — it can call the sign operation itself and forge requests, even
+  though it can't read the key out directly. This is a materially higher-risk
+  posture than keeping the key server-side, where no browser context ever
+  touches it at all.
+- Don't lock a real (production) key into a shared, public, or otherwise
+  untrusted computer. Prefer the `demo` environment while testing.
+
+If you'd rather not accept that trade-off, the safer alternative is a small
+serverless function (e.g. a Cloudflare Worker with the key as an encrypted
+secret) that does the signing instead of the browser — ask if you want that
+version instead.
 
 ## Setup
 
@@ -28,103 +63,78 @@ authenticated call is proxied through the backend.
 
 In the Kalshi UI (demo or production): **Account & security → API Keys →
 Create Key**. Save the **Key ID** and download the **private key PEM file**
-somewhere outside this repo (Kalshi will not show it to you again).
+(Kalshi will not show it to you again).
 
-### 2. Configure the backend
+### 2. Deploy the CORS relay (one-time)
+
+The relay holds no secrets, so this is infrastructure you set up once and
+forget about.
+
+**Easiest — paste into the Cloudflare dashboard:**
+
+1. Create a free Cloudflare account, go to **Workers & Pages → Create →
+   Create Worker**.
+2. Paste the contents of `relay/worker.js` into the editor, replacing the
+   default code.
+3. Under **Settings → Variables**, add `ALLOWED_ORIGIN` = the origin you'll
+   run the frontend from (e.g. `http://localhost:5173` for local dev, or
+   your GitHub Pages origin once deployed — see below).
+4. Deploy. Note the worker's URL (`https://<name>.<subdomain>.workers.dev`).
+
+**Or via the CLI**, if you'd rather script it:
 
 ```bash
-cd server
-cp .env.example .env
+cd relay
+npx wrangler login
+npx wrangler deploy
+npx wrangler secret list # (nothing to add — no secrets used)
 ```
 
-Edit `.env`:
+Edit `relay/wrangler.toml`'s `ALLOWED_ORIGIN` first.
 
-- `KALSHI_ENV` — `demo` to practice with play money, `prod` for real money.
-- `KALSHI_API_KEY_ID` — the Key ID from step 1.
-- `KALSHI_PRIVATE_KEY_PATH` — absolute path to the PEM file (use forward
-  slashes even on Windows, e.g. `C:/secure/kalshi-key.pem`).
-- `SLIPPAGE_BUFFER_CENTS` — how many cents through the best bid/ask the app
-  is willing to pay/accept to guarantee a fast fill on Touchdown/Buy Back
-  (default 2¢). Raise it on a thin/illiquid market, lower it if you'd rather
-  risk a partial fill than pay extra slippage.
-
-**Never commit `.env` or the PEM file.** Both are already gitignored.
-
-### 3. Install and run
-
-From the repo root:
+### 3. Configure and run the frontend
 
 ```bash
+cd web
 npm install
+```
+
+Create `web/.env.local`:
+
+```
+VITE_RELAY_URL=https://<your-worker>.<subdomain>.workers.dev
+```
+
+```bash
 npm run dev
 ```
 
-This starts the backend on `:8787` and the frontend on `:5173` (Vite proxies
-`/api/*` to the backend in dev). Open `http://localhost:5173`.
+Open `http://localhost:5173`, and on the "Lock key" screen paste your Key ID
+and private key PEM. Pick `demo` first.
 
 ### 4. Try it on `demo` first
 
-Set `KALSHI_ENV=demo`, fund your demo account with play money in the Kalshi
-UI, and run through a full game (start → touchdown → buy back) before ever
-pointing this at `prod`.
+Fund your demo account with play money in the Kalshi UI and run through a
+full game (start → touchdown → buy back) before ever locking in a
+production key.
 
-## Deploying
+## Deploying to GitHub Pages
 
-**GitHub Pages cannot host your Kalshi API key.** Pages only serves static
-files — anything that ends up there is public to anyone with the URL, with
-no server to run code or keep a secret. That's exactly the property the
-`server/` backend exists to avoid: the private key has to live somewhere
-that (a) executes code and (b) has real secret storage, neither of which
-Pages provides. So the deployment is necessarily two pieces:
+1. Repo **Settings → Pages → Source → GitHub Actions**. The workflow at
+   `.github/workflows/deploy-pages.yml` builds `web/` and deploys it on every
+   push to `main`.
+2. That workflow needs one repository **variable**: **Settings → Secrets and
+   variables → Actions → Variables → New repository variable**, name
+   `RELAY_URL`, value your Worker's URL from step 2 above. (Not a secret —
+   it's just a URL, and the worker holds no credentials.)
+3. Update the relay's `ALLOWED_ORIGIN` to your Pages origin,
+   `https://<you>.github.io` (no path, no trailing slash), and redeploy the
+   worker.
+4. Push to `main` (or run the workflow manually from the Actions tab). The
+   frontend deploys to `https://<you>.github.io/<repo-name>/`.
 
-- **Frontend → GitHub Pages** (or Vercel/Netlify — Pages is fine here since
-  it's just static files).
-- **Backend → a small host that runs Node with secrets** — Render, Fly.io,
-  Railway, a cheap VPS, or even your own machine on your LAN during the game
-  all work. Free tiers of Render/Fly/Railway are plenty for this.
-
-### 1. Deploy the backend somewhere first
-
-Pick a host (Render is the least fiddly for a single small service):
-
-1. Push this repo (already done if you're reading this after the commit).
-2. Create a new Web Service pointing at it, root directory `server`, build
-   command `npm install && npm run build`, start command `npm start`.
-3. In that host's dashboard (**not** in the repo), set the environment
-   variables from `server/.env.example`: `KALSHI_ENV`, `KALSHI_API_KEY_ID`,
-   `KALSHI_PRIVATE_KEY` (paste the PEM contents directly here, with real
-   newlines — most hosts' env var UIs handle multi-line values fine; use
-   `KALSHI_PRIVATE_KEY_PATH` instead only if the host gives you persistent
-   file storage), `SLIPPAGE_BUFFER_CENTS`, and `WEB_ORIGIN` (set this to your
-   Pages URL from step 2 below, e.g. `https://yourname.github.io`).
-4. Note the public URL the host gives your service, e.g.
-   `https://kalshi-button-api.onrender.com`.
-
-### 2. Turn on GitHub Pages for this repo
-
-In the repo on GitHub: **Settings → Pages → Source → GitHub Actions.** The
-workflow at `.github/workflows/deploy-pages.yml` (already in this repo)
-builds `web/` and deploys it on every push to `main`.
-
-That workflow needs one repository **variable** (not secret — it's just a
-public URL, no key involved): **Settings → Secrets and variables → Actions →
-Variables → New repository variable**, name `API_BASE_URL`, value the
-backend URL from step 1 (e.g. `https://kalshi-button-api.onrender.com`, no
-trailing slash).
-
-Push to `main` (or run the workflow manually from the Actions tab) and the
-frontend deploys to `https://<your-username>.github.io/<repo-name>/`.
-
-### 3. Close the loop
-
-Go back to the backend host and make sure `WEB_ORIGIN` matches the Pages URL
-exactly (e.g. `https://yourname.github.io`, not the `/repo-name/` subpath —
-CORS checks the origin, not the full path). Restart the backend service if
-the host doesn't do it automatically after an env var change.
-
-From then on: edit code, push to `main`, the frontend redeploys automatically;
-redeploy the backend from its host's dashboard (or push, if you wired up
-auto-deploy there) whenever `server/` changes.
+Your key is never part of this deploy — it's pasted into the running app in
+your browser, separately, per device.
 
 ## How the trading actually works
 
@@ -140,8 +150,8 @@ filled before you see any UI update, so:
   rather than assuming the order did what was requested. Partial fills are
   shown as a warning in the activity log with a "try again" nudge.
 - A second click on the same button while one is already in flight is
-  rejected by the backend (one in-flight order per market ticker at a time),
-  on top of the button disabling itself immediately in the UI.
+  rejected in-browser (one in-flight order per market ticker at a time), on
+  top of the button disabling itself immediately in the UI.
 
 Realized P&L, fees paid, and average cost basis for currently-held shares are
 read directly from Kalshi's own position data, not recomputed locally — the
@@ -154,12 +164,15 @@ always comes back with the fill.
 - **URL parsing is heuristic.** It extracts ticker-shaped tokens from the
   pasted URL and tries each one against Kalshi's API until one resolves to
   an event with two binary team markets. If Kalshi changes its URL format
-  and this stops working, the fix is in `server/src/lib/parseKalshiUrl.ts`
+  and this stops working, the fix is in `web/src/kalshi/parseKalshiUrl.ts`
   — or just paste the raw ticker instead of the full URL.
 - **Price ticks are assumed to be whole cents.** That's true for the vast
   majority of Kalshi sports markets; a market with a different tick size
   could reject an order, which will show up as a clear error rather than a
   silent failure.
+- **Ed25519 keys** depend on browser support for `crypto.subtle` Ed25519
+  (widely available in current Chrome/Firefox/Safari, not universal on older
+  browsers). RSA keys work everywhere WebCrypto exists.
 - **Flat-fee series** aren't covered by the Buy Back fee estimate (Kalshi
   publishes that table separately); the estimate is hidden in that case and
   the real fee still shows up after the fill.
@@ -170,19 +183,18 @@ always comes back with the fill.
 ## Project layout
 
 ```
-server/src/
-  config.ts            env/config loading
-  kalshi/signing.ts     RSA-PSS / Ed25519 request signing
-  kalshi/client.ts       thin wrapper over the Kalshi REST API
-  kalshi/types.ts        Kalshi API response shapes we use
-  lib/parseKalshiUrl.ts  URL -> candidate ticker extraction
-  lib/pricing.ts          marketable IOC price / fee math
-  lib/orderLock.ts        per-ticker duplicate-order guard
-  routes/                 resolve, markets, positions, orders endpoints
+relay/
+  worker.js              secret-free CORS passthrough to Kalshi's API
+  wrangler.toml           Cloudflare Worker config (set ALLOWED_ORIGIN here)
 
 web/src/
-  api/client.ts          fetch wrapper for the backend
+  kalshi/signing.ts        PEM parsing + WebCrypto RSA-PSS/Ed25519 signing
+  kalshi/keyStore.ts        IndexedDB storage of the non-extractable key
+  kalshi/client.ts           request building, resolve/order/position logic
+  kalshi/pricing.ts           marketable IOC price math
+  kalshi/orderLock.ts          per-ticker duplicate-order guard
+  kalshi/parseKalshiUrl.ts      URL -> candidate ticker extraction
   state/useGame.ts        game state, polling, order-triggering actions
-  components/             SetupScreen, GameScreen, TeamPanel, ActivityLog
+  components/             CredentialsSetup, SetupScreen, GameScreen, TeamPanel, ActivityLog
   lib/pnl.ts, format.ts    P&L/fee math and display formatting
 ```

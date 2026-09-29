@@ -20,8 +20,6 @@ export interface KalshiMarket {
   status: MarketStatus;
   yes_bid_dollars: string;
   yes_ask_dollars: string;
-  yes_bid_size_fp?: string;
-  yes_ask_size_fp?: string;
   no_bid_dollars: string;
   no_ask_dollars: string;
   last_price_dollars: string;

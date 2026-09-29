@@ -1,16 +1,15 @@
 import { useState } from "react";
-import { ApiError, resolveMarket } from "../api/client";
-import type { ResolveResponse } from "../types";
+import { resolveMarketFromUrl, type ResolveResult } from "../kalshi/client";
 
 interface Props {
-  onConfirm: (resolved: ResolveResponse, teamTickers: [string, string]) => Promise<void>;
+  onConfirm: (resolved: ResolveResult, teamTickers: [string, string]) => Promise<void>;
 }
 
 export function SetupScreen({ onConfirm }: Props) {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [resolved, setResolved] = useState<ResolveResponse | null>(null);
+  const [resolved, setResolved] = useState<ResolveResult | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [starting, setStarting] = useState(false);
 
@@ -20,11 +19,11 @@ export function SetupScreen({ onConfirm }: Props) {
     setResolved(null);
     setLoading(true);
     try {
-      const res = await resolveMarket(url);
+      const res = await resolveMarketFromUrl(url);
       setResolved(res);
       setSelected(res.markets.slice(0, 2).map((m) => m.ticker));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Something went wrong resolving that URL.");
+      setError(err instanceof Error ? err.message : "Something went wrong resolving that URL.");
     } finally {
       setLoading(false);
     }
@@ -56,7 +55,7 @@ export function SetupScreen({ onConfirm }: Props) {
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-xl flex-col justify-center gap-6 px-4 py-10">
+    <div className="mx-auto flex w-full max-w-xl flex-col justify-center gap-6 py-10">
       <div>
         <h1 className="text-2xl font-bold text-white">Kalshi Touchdown Button</h1>
         <p className="mt-1 text-sm text-slate-400">

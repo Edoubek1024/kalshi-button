@@ -1,9 +1,11 @@
 name: Deploy frontend to GitHub Pages
 
-# This deploys ONLY the static frontend (web/). The backend that holds your
-# Kalshi API key must run somewhere else that supports server-side secrets —
-# GitHub Pages serves plain static files to anyone, so it can never safely
-# hold the private key. See README.md "Deploying" for the full picture.
+# This deploys the static frontend (web/) only. Your Kalshi key is never part
+# of this build — it's pasted into the running app and lives only in that
+# browser's IndexedDB (see README.md "Security model" for the trade-offs of
+# that approach). The only other piece is a secret-free CORS relay
+# (relay/worker.js) that the frontend calls at runtime; its URL is baked in
+# here via a repository variable since it's just a public URL, not a secret.
 
 on:
   push:
@@ -36,12 +38,12 @@ jobs:
       - name: Build frontend
         working-directory: web
         env:
-          # Set an "API_BASE_URL" repository variable (Settings -> Secrets and
-          # variables -> Actions -> Variables) to your deployed backend's
-          # public origin, e.g. https://kalshi-button-api.onrender.com
-          # It's not secret (it's just a URL), so a repo *variable* is right,
-          # not a *secret*.
-          VITE_API_BASE_URL: ${{ vars.API_BASE_URL }}
+          # Set a "RELAY_URL" repository variable (Settings -> Secrets and
+          # variables -> Actions -> Variables) to your deployed Cloudflare
+          # Worker's URL, e.g. https://kalshi-button-relay.yourname.workers.dev
+          # It's not secret (it's just a URL, and the worker itself holds no
+          # credentials), so a repo *variable* is right, not a *secret*.
+          VITE_RELAY_URL: ${{ vars.RELAY_URL }}
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
         run: npm run build
 

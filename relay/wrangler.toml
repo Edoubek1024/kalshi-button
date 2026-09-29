@@ -1,0 +1,9 @@
+name = "kalshi-button-relay"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+# Set this to your GitHub Pages origin (no path, no trailing slash), e.g.
+# "https://yourname.github.io". Restricting it to your own origin means
+# nobody else's site can route requests through your relay.
+[vars]
+ALLOWED_ORIGIN = "https://yourname.github.io"

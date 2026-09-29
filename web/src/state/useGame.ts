@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
-import { ApiError, buyToTarget, fetchPositions, refreshMarkets, sellAll } from "../api/client";
-import type { ActiveGame, ActivityLogEntry, ResolveResponse, TeamState } from "../types";
+import { KalshiApiError, buyToTarget, fetchPositions, refreshMarkets, sellAll, type ResolveResult } from "../kalshi/client";
+import type { ActiveGame, ActivityLogEntry, TeamState } from "../types";
 
 const STORAGE_KEY = "kalshi-button-game-v1";
 const TARGET_CONTRACTS = 10;
@@ -134,7 +134,7 @@ export function useGame() {
     const game = gameRef.current;
     if (!game) return;
     try {
-      const { markets } = await refreshMarkets(game.teams.map((t) => t.ticker));
+      const markets = await refreshMarkets(game.teams.map((t) => t.ticker));
       for (const m of markets) {
         dispatch({
           type: "UPDATE_TEAM",
@@ -151,7 +151,7 @@ export function useGame() {
     const game = gameRef.current;
     if (!game) return;
     try {
-      const { positions } = await fetchPositions(game.eventTicker);
+      const positions = await fetchPositions(game.eventTicker);
       for (const team of game.teams) {
         const pos = positions.find((p) => p.ticker === team.ticker);
         dispatch({
@@ -203,7 +203,7 @@ export function useGame() {
   }, [state.game?.eventTicker, refreshPrices, refreshPositions]);
 
   const startGame = useCallback(
-    async (resolved: ResolveResponse, teamTickers: [string, string]) => {
+    async (resolved: ResolveResult, teamTickers: [string, string]) => {
       const selected = resolved.markets.filter((m) => teamTickers.includes(m.ticker));
       if (selected.length !== 2) throw new Error("Pick exactly two teams to start the game.");
 
@@ -247,7 +247,7 @@ export function useGame() {
               },
             });
           } catch (err) {
-            log("error", `${team.teamName}: buy-in failed — ${err instanceof ApiError ? err.message : "unknown error"}`);
+            log("error", `${team.teamName}: buy-in failed — ${err instanceof KalshiApiError ? err.message : "unknown error"}`);
           } finally {
             dispatch({ type: "SET_PENDING", ticker: team.ticker, pending: false });
           }
@@ -297,7 +297,7 @@ export function useGame() {
           },
         });
       } catch (err) {
-        log("error", `${other.teamName}: sell failed — ${err instanceof ApiError ? err.message : "unknown error"}`);
+        log("error", `${other.teamName}: sell failed — ${err instanceof KalshiApiError ? err.message : "unknown error"}`);
       } finally {
         dispatch({ type: "SET_PENDING", ticker: scoring.ticker, pending: false });
         dispatch({ type: "SET_PENDING", ticker: other.ticker, pending: false });
@@ -334,7 +334,7 @@ export function useGame() {
           patch: { contracts: result.contractsAfter },
         });
       } catch (err) {
-        log("error", `${team.teamName}: buy-back failed — ${err instanceof ApiError ? err.message : "unknown error"}`);
+        log("error", `${team.teamName}: buy-back failed — ${err instanceof KalshiApiError ? err.message : "unknown error"}`);
       } finally {
         dispatch({ type: "SET_PENDING", ticker, pending: false });
       }

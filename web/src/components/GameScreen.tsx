@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getSeriesFeeParams, type FeeParams } from "../api/client";
+import { getSeriesFeeParams, type FeeParams } from "../kalshi/client";
 import type { ActiveGame, ActivityLogEntry } from "../types";
 import { TeamPanel } from "./TeamPanel";
 import { ActivityLog } from "./ActivityLog";
@@ -31,7 +31,7 @@ export function GameScreen({ game, pending, log, onTouchdown, onBuyBack, onEndGa
   }, [game.seriesTicker]);
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-4 px-4 py-6">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 py-6">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-lg font-bold text-white">{game.eventTitle}</h1>

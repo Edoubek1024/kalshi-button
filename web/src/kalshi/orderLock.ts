@@ -1,8 +1,8 @@
 /**
  * Kalshi's client_order_id has no documented server-side dedupe guarantee, so
  * duplicate-order prevention (e.g. a frantic double-click during a real game)
- * has to happen on our side. This is a simple in-memory mutex per ticker:
- * only one order may be in flight for a given market ticker at a time.
+ * happens here: only one order may be in flight for a given market ticker at
+ * a time, on top of the UI disabling the button immediately on click.
  */
 const inFlight = new Set<string>();
 
