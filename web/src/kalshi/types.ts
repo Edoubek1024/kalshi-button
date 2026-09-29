@@ -94,8 +94,11 @@ export interface KalshiSeries {
   fee_multiplier: number;
 }
 
+// Kalshi wraps errors as { "error": { code, message, details } }, not flat.
 export interface KalshiErrorBody {
-  code?: string;
-  message?: string;
-  details?: string;
+  error?: {
+    code?: string;
+    message?: string;
+    details?: string;
+  };
 }

@@ -27,7 +27,7 @@ export class KalshiApiError extends Error {
     super(message);
     this.name = "KalshiApiError";
     this.status = status;
-    this.kalshiCode = body?.code;
+    this.kalshiCode = body?.error?.code;
   }
 }
 
@@ -77,7 +77,7 @@ async function request<T>(method: "GET" | "POST" | "DELETE", path: string, body?
   const json = text ? JSON.parse(text) : undefined;
 
   if (!res.ok) {
-    const message = (json as KalshiErrorBody | undefined)?.message ?? `Kalshi API request failed: ${method} ${path} -> ${res.status}`;
+    const message = (json as KalshiErrorBody | undefined)?.error?.message ?? `Kalshi API request failed: ${method} ${path} -> ${res.status}`;
     throw new KalshiApiError(res.status, json, message);
   }
 
