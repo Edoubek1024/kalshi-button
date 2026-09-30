@@ -1,9 +1,11 @@
 # Kalshi Touchdown Button
 
-A live-trading companion for watching football with friends. Paste a Kalshi
-game market URL, it buys 10 shares of each team, and then a single button
-per team lets you sell the losing team's shares the instant a touchdown is
-scored — with a Buy Back option to rebuild the position once the price falls.
+A live-trading companion for watching games with friends. Paste a Kalshi
+game market URL, it buys 5 shares of each outcome (two for a straight
+win/lose matchup, three when a draw/tie is a separate tradable market, like
+soccer), and then a single button per outcome lets you sell every other
+outcome's shares the instant it's decided — with a Buy Back option to
+rebuild a position once the price falls.
 
 **This places real orders with real money on your Kalshi account.** Read
 "Security model" below before pasting real credentials into it.
@@ -138,17 +140,32 @@ your browser, separately, per device.
 
 ## How the trading actually works
 
-Every order this app places is an **IOC (immediate-or-cancel)** order priced
-a couple cents through the best opposing price — Kalshi's API doesn't have a
-distinct "market order" type; this is the standard way to get a fill without
-resting on the book. The response tells you exactly how many contracts
-filled before you see any UI update, so:
+Kalshi's API doesn't have a distinct "market order" type — every order is a
+limit order with a time-in-force, priced a couple cents through the best
+opposing price to make it marketable. This app uses two different
+time-in-force settings depending on how time-sensitive the action is:
 
-- A "Touchdown" or "Buy Back" press either fills (in full or partially) or
-  bounces — it never silently does nothing.
+- **Touchdown (selling every other outcome)** uses **IOC (immediate-or-cancel)**.
+  Whatever doesn't fill immediately is cancelled outright, never left open —
+  this is the one action that's supposed to be instant and final, so an
+  unfilled remainder quietly resting on the book for hours (or filling after
+  the game's already over) would be worse than just knowing it didn't fully
+  go through.
+- **Buy-in and Buy Back** use **good-till-canceled**, with no expiration.
+  Whatever doesn't fill immediately **rests on the book** and may fill later,
+  unattended, at a price you never explicitly saw — the trade-off accepted
+  here is that these two aren't as time-critical as the touchdown sell, and
+  resting can catch a fill IOC would've missed. The activity log distinguishes
+  a full fill from "still resting" from an actual failure; the app's regular
+  position polling will eventually pick up a late fill, but there's currently
+  no in-app way to cancel a resting order — do that from Kalshi directly if
+  you want to pull it back.
+
+Either way, the order response tells you exactly how many contracts filled
+before you see any UI update, so:
+
 - After every order, the app re-fetches your actual position from Kalshi
-  rather than assuming the order did what was requested. Partial fills are
-  shown as a warning in the activity log with a "try again" nudge.
+  rather than assuming the order did what was requested.
 - A second click on the same button while one is already in flight is
   rejected in-browser (one in-flight order per market ticker at a time), on
   top of the button disabling itself immediately in the UI.

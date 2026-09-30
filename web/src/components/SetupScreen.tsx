@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { resolveMarketFromUrl, type ResolveResult } from "../kalshi/client";
+import { TARGET_CONTRACTS } from "../kalshi/constants";
 
 interface Props {
-  onConfirm: (resolved: ResolveResult, teamTickers: [string, string]) => Promise<void>;
+  onConfirm: (resolved: ResolveResult, teamTickers: string[]) => Promise<void>;
   kalshiEnv: "demo" | "prod";
 }
 
@@ -23,7 +24,9 @@ export function SetupScreen({ onConfirm, kalshiEnv }: Props) {
     try {
       const res = await resolveMarketFromUrl(url);
       setResolved(res);
-      setSelected(res.markets.slice(0, 2).map((m) => m.ticker));
+      // Default to every outcome found — a straightforward matchup has 2, one with a
+      // draw/tie option (soccer) typically has 3. Users can deselect any they don't want.
+      setSelected(res.markets.map((m) => m.ticker));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong resolving that URL.");
     } finally {
@@ -32,24 +35,24 @@ export function SetupScreen({ onConfirm, kalshiEnv }: Props) {
   }
 
   function toggleTeam(ticker: string) {
-    setSelected((prev) => {
-      if (prev.includes(ticker)) return prev.filter((t) => t !== ticker);
-      if (prev.length >= 2) return [prev[1], ticker];
-      return [...prev, ticker];
-    });
+    setSelected((prev) => (prev.includes(ticker) ? prev.filter((t) => t !== ticker) : [...prev, ticker]));
   }
 
   async function handleStart() {
-    if (!resolved || selected.length !== 2) return;
+    if (!resolved || selected.length < 2) return;
     const names = resolved.markets.filter((m) => selected.includes(m.ticker)).map((m) => m.teamName);
     const moneyLabel = isReal ? "real-money" : "play-money (demo)";
-    if (!window.confirm(`Buy 10 ${moneyLabel} shares of each: ${names.join(" and ")}?\n\nThis places live orders on your Kalshi ${kalshiEnv} account.`)) {
+    if (
+      !window.confirm(
+        `Buy ${TARGET_CONTRACTS} ${moneyLabel} shares of each: ${names.join(", ")}?\n\nThis places live orders on your Kalshi ${kalshiEnv} account.`
+      )
+    ) {
       return;
     }
     setStarting(true);
     setError(null);
     try {
-      await onConfirm(resolved, [selected[0], selected[1]]);
+      await onConfirm(resolved, selected);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to start the game.");
     } finally {
@@ -62,7 +65,7 @@ export function SetupScreen({ onConfirm, kalshiEnv }: Props) {
       <div>
         <h1 className="text-2xl font-bold text-white">Kalshi Touchdown Button</h1>
         <p className="mt-1 text-sm text-slate-400">
-          Paste a Kalshi football game market URL to start.{" "}
+          Paste a Kalshi game market URL to start.{" "}
           {isReal ? (
             <>
               This places <span className="font-semibold text-amber-400">real orders</span> with real money.
@@ -103,7 +106,7 @@ export function SetupScreen({ onConfirm, kalshiEnv }: Props) {
 
           <div>
             <div className="mb-2 text-xs uppercase tracking-wide text-slate-500">
-              {resolved.markets.length > 2 ? "Pick the two teams" : "Teams"}
+              Outcomes to trade (includes a draw/tie option when the market has one)
             </div>
             <div className="flex flex-col gap-2">
               {resolved.markets.map((m) => (
@@ -130,14 +133,17 @@ export function SetupScreen({ onConfirm, kalshiEnv }: Props) {
                 </label>
               ))}
             </div>
+            {selected.length < 2 && <p className="mt-2 text-xs text-amber-400">Pick at least two outcomes.</p>}
           </div>
 
           <button
             onClick={handleStart}
-            disabled={selected.length !== 2 || starting}
+            disabled={selected.length < 2 || starting}
             className="rounded-lg bg-amber-500 px-4 py-3 font-bold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {starting ? "Placing opening orders..." : `Start game — buy 10 shares each team (${isReal ? "real money" : "demo"})`}
+            {starting
+              ? "Placing opening orders..."
+              : `Start game — buy ${TARGET_CONTRACTS} shares each (${isReal ? "real money" : "demo"})`}
           </button>
         </div>
       )}

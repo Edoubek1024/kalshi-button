@@ -212,9 +212,16 @@ export interface OrderResult {
   averageFeePaidDollars?: number | null;
   contractsAfter: number;
   fullyFilled?: boolean;
+  /** True if an unfilled remainder is resting on the book (GTC) rather than cancelled (IOC). */
+  resting?: boolean;
 }
 
-/** Buys enough contracts to bring the position up to targetContracts. Idempotent no-op if already there. */
+/**
+ * Buys enough contracts to bring the position up to targetContracts. Idempotent no-op if already there.
+ * Uses good-till-canceled: an unfilled remainder rests on the book instead of being cancelled, so it may
+ * fill later, unattended. That's deliberate here (buy-in/buy-back aren't as time-sensitive as the
+ * touchdown sell, which stays IOC) — see sellAll.
+ */
 export async function buyToTarget(ticker: string, targetContracts: number): Promise<OrderResult> {
   return withOrderLock(ticker, async () => {
     const before = await fetchContracts(ticker);
@@ -233,12 +240,13 @@ export async function buyToTarget(ticker: string, targetContracts: number): Prom
       side: "bid",
       count: countToFixedPoint(deficit),
       price,
-      time_in_force: "immediate_or_cancel",
+      time_in_force: "good_till_canceled",
       self_trade_prevention_type: "taker_at_cross",
     });
 
     const after = await fetchContracts(ticker);
     const fillCount = Number(order.fill_count);
+    const fullyFilled = fillCount >= deficit;
 
     return {
       noop: false,
@@ -250,7 +258,8 @@ export async function buyToTarget(ticker: string, targetContracts: number): Prom
       averageFillPriceDollars: order.average_fill_price ? Number(order.average_fill_price) : null,
       averageFeePaidDollars: order.average_fee_paid ? Number(order.average_fee_paid) : null,
       contractsAfter: after,
-      fullyFilled: fillCount >= deficit,
+      fullyFilled,
+      resting: !fullyFilled,
     };
   });
 }

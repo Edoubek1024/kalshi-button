@@ -32,7 +32,7 @@ export function GameScreen({ game, pending, log, kalshiEnv, onTouchdown, onBuyBa
   }, [game.seriesTicker]);
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 py-6">
+    <div className={`mx-auto flex w-full flex-col gap-4 py-6 ${game.teams.length > 2 ? "max-w-5xl" : "max-w-3xl"}`}>
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-lg font-bold text-white">{game.eventTitle}</h1>
@@ -52,7 +52,7 @@ export function GameScreen({ game, pending, log, kalshiEnv, onTouchdown, onBuyBa
         </button>
       </div>
 
-      <div className="flex flex-col gap-4 sm:flex-row">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-[repeat(auto-fit,minmax(260px,1fr))]">
         {game.teams.map((team) => (
           <TeamPanel
             key={team.ticker}

@@ -1,9 +1,8 @@
 import type { FeeParams } from "../kalshi/client";
+import { TARGET_CONTRACTS } from "../kalshi/constants";
 import type { TeamState } from "../types";
 import { estimateTakerFeeDollars, roundTripNetDollars, unrealizedPnlDollars } from "../lib/pnl";
 import { formatUsd } from "../lib/format";
-
-const TARGET_CONTRACTS = 10;
 
 interface Props {
   team: TeamState;
