@@ -220,7 +220,7 @@ export interface OrderResult {
  * Buys enough contracts to bring the position up to targetContracts. Idempotent no-op if already there.
  * Uses good-till-canceled: an unfilled remainder rests on the book instead of being cancelled, so it may
  * fill later, unattended. That's deliberate here (buy-in/buy-back aren't as time-sensitive as the
- * touchdown sell, which stays IOC) — see sellAll.
+ * score sell, which stays IOC) — see sellAll.
  */
 export async function buyToTarget(ticker: string, targetContracts: number): Promise<OrderResult> {
   return withOrderLock(ticker, async () => {

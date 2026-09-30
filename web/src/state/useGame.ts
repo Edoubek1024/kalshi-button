@@ -9,7 +9,7 @@ interface PersistedGame {
   eventTicker: string;
   eventTitle: string;
   seriesTicker: string;
-  teams: { ticker: string; teamName: string }[];
+  teams: [{ ticker: string; teamName: string }, { ticker: string; teamName: string }];
 }
 
 interface GameReducerState {
@@ -35,7 +35,10 @@ function reducer(state: GameReducerState, action: Action): GameReducerState {
       return { ...state, pending: { ...state.pending, [action.ticker]: action.pending } };
     case "UPDATE_TEAM": {
       if (!state.game) return state;
-      const teams = state.game.teams.map((t) => (t.ticker === action.ticker ? { ...t, ...action.patch } : t));
+      const teams = state.game.teams.map((t) => (t.ticker === action.ticker ? { ...t, ...action.patch } : t)) as [
+        TeamState,
+        TeamState
+      ];
       return { ...state, game: { ...state.game, teams } };
     }
     case "LOG":
@@ -65,7 +68,10 @@ function persist(game: ActiveGame | null) {
       eventTicker: game.eventTicker,
       eventTitle: game.eventTitle,
       seriesTicker: game.seriesTicker,
-      teams: game.teams.map((t) => ({ ticker: t.ticker, teamName: t.teamName })),
+      teams: [
+        { ticker: game.teams[0].ticker, teamName: game.teams[0].teamName },
+        { ticker: game.teams[1].ticker, teamName: game.teams[1].teamName },
+      ],
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(skeleton));
   } catch {
@@ -123,7 +129,10 @@ export function useGame() {
         eventTicker: persisted.eventTicker,
         eventTitle: persisted.eventTitle,
         seriesTicker: persisted.seriesTicker,
-        teams: persisted.teams.map((t) => emptyTeam(t.ticker, t.teamName)),
+        teams: [
+          emptyTeam(persisted.teams[0].ticker, persisted.teams[0].teamName),
+          emptyTeam(persisted.teams[1].ticker, persisted.teams[1].teamName),
+        ],
       },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -210,11 +219,14 @@ export function useGame() {
   }, [state.game?.eventTicker, refreshPrices, refreshPositions]);
 
   const startGame = useCallback(
-    async (resolved: ResolveResult, teamTickers: string[]) => {
+    async (resolved: ResolveResult, teamTickers: [string, string]) => {
       const selected = resolved.markets.filter((m) => teamTickers.includes(m.ticker));
-      if (selected.length < 2) throw new Error("Pick at least two outcomes to start the game.");
+      if (selected.length !== 2) throw new Error("Pick exactly two teams to start the game.");
 
-      const teams: TeamState[] = selected.map((m) => emptyTeam(m.ticker, m.teamName));
+      const teams: [TeamState, TeamState] = [
+        emptyTeam(selected[0].ticker, selected[0].teamName),
+        emptyTeam(selected[1].ticker, selected[1].teamName),
+      ];
       const game: ActiveGame = {
         eventTicker: resolved.eventTicker,
         eventTitle: resolved.eventTitle,
@@ -251,54 +263,50 @@ export function useGame() {
     [log, refreshPositions]
   );
 
-  const touchdown = useCallback(
+  const score = useCallback(
     async (scoringTicker: string) => {
       const game = gameRef.current;
       if (!game) return;
       const scoring = game.teams.find((t) => t.ticker === scoringTicker);
-      const others = game.teams.filter((t) => t.ticker !== scoringTicker);
-      if (!scoring || others.length === 0) return;
+      const other = game.teams.find((t) => t.ticker !== scoringTicker);
+      if (!scoring || !other) return;
 
       dispatch({ type: "UPDATE_TEAM", ticker: scoring.ticker, patch: { hasScored: true } });
       dispatch({ type: "SET_PENDING", ticker: scoring.ticker, pending: true });
-      for (const o of others) dispatch({ type: "SET_PENDING", ticker: o.ticker, pending: true });
-      log("info", `${scoring.teamName} locked in! Selling ${others.map((o) => o.teamName).join(", ")}...`);
+      dispatch({ type: "SET_PENDING", ticker: other.ticker, pending: true });
+      log("info", `${scoring.teamName} scores! Selling ${other.teamName} position...`);
 
-      await Promise.all(
-        others.map(async (other) => {
-          try {
-            const result = await sellAll(other.ticker);
-            if (result.noop) {
-              log("info", `${other.teamName}: ${result.message}`);
-            } else if (result.fullyFilled) {
-              log(
-                "sell",
-                `Sold ${result.filledCount} ${other.teamName} @ avg ${result.averageFillPriceDollars?.toFixed(2)} (fee ${result.averageFeePaidDollars?.toFixed(2) ?? "0.00"})`
-              );
-            } else {
-              log(
-                "error",
-                `${other.teamName}: only sold ${result.filledCount}/${result.requestedCount} contracts. ${result.remainingCount} still held — try Sell again.`
-              );
-            }
-            dispatch({
-              type: "UPDATE_TEAM",
-              ticker: other.ticker,
-              patch: {
-                contracts: result.contractsAfter,
-                lastSalePriceDollars: result.averageFillPriceDollars ?? other.lastSalePriceDollars,
-                lastSaleFeeDollars: result.noop ? other.lastSaleFeeDollars : result.averageFeePaidDollars ?? 0,
-              },
-            });
-          } catch (err) {
-            log("error", `${other.teamName}: sell failed — ${err instanceof KalshiApiError ? err.message : "unknown error"}`);
-          } finally {
-            dispatch({ type: "SET_PENDING", ticker: other.ticker, pending: false });
-          }
-        })
-      );
+      try {
+        const result = await sellAll(other.ticker);
+        if (result.noop) {
+          log("info", `${other.teamName}: ${result.message}`);
+        } else if (result.fullyFilled) {
+          log(
+            "sell",
+            `Sold ${result.filledCount} ${other.teamName} @ avg ${result.averageFillPriceDollars?.toFixed(2)} (fee ${result.averageFeePaidDollars?.toFixed(2) ?? "0.00"})`
+          );
+        } else {
+          log(
+            "error",
+            `${other.teamName}: only sold ${result.filledCount}/${result.requestedCount} contracts. ${result.remainingCount} still held — try Sell again.`
+          );
+        }
+        dispatch({
+          type: "UPDATE_TEAM",
+          ticker: other.ticker,
+          patch: {
+            contracts: result.contractsAfter,
+            lastSalePriceDollars: result.averageFillPriceDollars ?? other.lastSalePriceDollars,
+            lastSaleFeeDollars: result.noop ? other.lastSaleFeeDollars : result.averageFeePaidDollars ?? 0,
+          },
+        });
+      } catch (err) {
+        log("error", `${other.teamName}: sell failed — ${err instanceof KalshiApiError ? err.message : "unknown error"}`);
+      } finally {
+        dispatch({ type: "SET_PENDING", ticker: scoring.ticker, pending: false });
+        dispatch({ type: "SET_PENDING", ticker: other.ticker, pending: false });
+      }
 
-      dispatch({ type: "SET_PENDING", ticker: scoring.ticker, pending: false });
       await refreshPositions();
     },
     [log, refreshPositions]
@@ -340,12 +348,12 @@ export function useGame() {
       pending: state.pending,
       log: state.log,
       startGame,
-      touchdown,
+      score,
       buyBack,
       endGame,
       refreshPrices,
       refreshPositions,
     }),
-    [state.game, state.pending, state.log, startGame, touchdown, buyBack, endGame, refreshPrices, refreshPositions]
+    [state.game, state.pending, state.log, startGame, score, buyBack, endGame, refreshPrices, refreshPositions]
   );
 }

@@ -9,11 +9,11 @@ interface Props {
   pending: boolean;
   feeParams: FeeParams | null;
   kalshiEnv: "demo" | "prod";
-  onTouchdown: () => void;
+  onScore: () => void;
   onBuyBack: () => void;
 }
 
-export function TeamPanel({ team, pending, feeParams, kalshiEnv, onTouchdown, onBuyBack }: Props) {
+export function TeamPanel({ team, pending, feeParams, kalshiEnv, onScore, onBuyBack }: Props) {
   const deficit = Math.max(0, TARGET_CONTRACTS - team.contracts);
   const needsBuyBack = deficit > 0;
   const unrealized = unrealizedPnlDollars(team.contracts, team.avgPriceDollars, team.yesBidDollars);
@@ -57,11 +57,11 @@ export function TeamPanel({ team, pending, feeParams, kalshiEnv, onTouchdown, on
       </div>
 
       <button
-        onClick={onTouchdown}
+        onClick={onScore}
         disabled={pending}
         className="rounded-xl bg-emerald-600 py-6 text-2xl font-extrabold uppercase tracking-wide text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {pending ? "Working..." : `Touchdown ${team.teamName}`}
+        {pending ? "Working..." : `Score ${team.teamName}`}
       </button>
 
       {needsBuyBack && (

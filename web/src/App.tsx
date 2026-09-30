@@ -9,7 +9,7 @@ import { setActiveCredentials } from "./kalshi/client";
 export default function App() {
   const [creds, setCreds] = useState<StoredCredentials | null>(null);
   const [checkedStorage, setCheckedStorage] = useState(false);
-  const { game, pending, log, startGame, touchdown, buyBack, endGame } = useGame();
+  const { game, pending, log, startGame, score, buyBack, endGame } = useGame();
 
   useEffect(() => {
     loadCredentials()
@@ -43,7 +43,7 @@ export default function App() {
           pending={pending}
           log={log}
           kalshiEnv={creds.kalshiEnv}
-          onTouchdown={touchdown}
+          onScore={score}
           onBuyBack={buyBack}
           onEndGame={endGame}
         />
